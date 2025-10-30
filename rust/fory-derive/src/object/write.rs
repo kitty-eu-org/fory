@@ -18,7 +18,7 @@
 use super::util::{
     classify_trait_object_field, compute_struct_version_hash, create_wrapper_types_arc,
     create_wrapper_types_rc, get_struct_name, get_type_id_by_type_ast, is_debug_enabled,
-    should_skip_type_info_for_field, skip_ref_flag, StructField,
+    is_skip_field, should_skip_type_info_for_field, skip_ref_flag, StructField,
 };
 use fory_core::types::TypeId;
 use proc_macro2::TokenStream;
@@ -243,7 +243,11 @@ fn gen_write_field(field: &Field) -> TokenStream {
 }
 
 pub fn gen_write_data(fields: &[&Field]) -> TokenStream {
-    let write_fields_ts: Vec<_> = fields.iter().map(|field| gen_write_field(field)).collect();
+    let write_fields_ts: Vec<_> = fields
+        .iter()
+        .filter(|field| !is_skip_field(field))
+        .map(|field| gen_write_field(field))
+        .collect();
     let version_hash = compute_struct_version_hash(fields);
     quote! {
         // Write version hash when class version checking is enabled
