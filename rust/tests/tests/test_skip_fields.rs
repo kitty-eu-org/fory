@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-
 use fory_core::{Fory, ForyDefault, Reader};
 use fory_derive::ForyObject;
 
