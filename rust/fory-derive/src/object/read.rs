@@ -22,7 +22,7 @@ use syn::{Field, Type};
 use super::util::{
     classify_trait_object_field, compute_struct_version_hash, create_wrapper_types_arc,
     create_wrapper_types_rc, extract_type_name, get_struct_name, is_debug_enabled,
-    is_primitive_type, should_skip_type_info_for_field, skip_ref_flag, StructField,
+    is_primitive_type, is_skip_field, should_skip_type_info_for_field, skip_ref_flag, StructField,
 };
 
 fn create_private_field_name(field: &Field) -> Ident {
@@ -103,6 +103,13 @@ fn assign_value(fields: &[&Field]) -> Vec<TokenStream> {
 
 pub fn gen_read_field(field: &Field, private_ident: &Ident) -> TokenStream {
     let ty = &field.ty;
+    if is_skip_field(field) {
+        let ty = &field.ty;
+        return quote! {
+            let #private_ident = <#ty as fory_core::ForyDefault>::fory_default();
+        };
+    }
+
     let base = match classify_trait_object_field(ty) {
         StructField::BoxDyn => {
             quote! {
