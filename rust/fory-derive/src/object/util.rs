@@ -701,7 +701,12 @@ pub(crate) fn get_sorted_field_names(fields: &[&Field]) -> Vec<String> {
 }
 
 pub(super) fn get_sort_fields_ts(fields: &[&Field]) -> TokenStream {
-    let sorted_names = get_sorted_field_names(fields);
+    let filterd_fields: Vec<&Field> = fields
+        .iter()
+        .filter(|field| !is_skip_field(field))
+        .copied()
+        .collect();
+    let sorted_names = get_sorted_field_names(&filterd_fields);
     let names = sorted_names.iter().map(|name| {
         quote! { #name }
     });
