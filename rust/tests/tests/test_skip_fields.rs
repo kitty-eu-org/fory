@@ -295,3 +295,139 @@ fn test_skip_with_different_types() {
     assert_eq!(decoded.skipped_bool, bool::default());
     assert_eq!(decoded.skipped_vec, Vec::<i32>::default());
 }
+
+#[test]
+fn test_trait_object_serialization() {
+    use fory_core::ForyDefault;
+    use fory_core::Serializer;
+    use fory_core::{register_trait_type, Fory};
+    use fory_derive::ForyObject;
+    use std::collections::HashMap;
+    use std::rc::Rc;
+    use std::sync::Arc;
+
+    trait Animal: Serializer {
+        fn speak(&self) -> String;
+        fn name(&self) -> &str;
+    }
+
+    #[derive(ForyObject, Debug)]
+    struct Dog {
+        name: String,
+        breed: String,
+    }
+
+    impl Animal for Dog {
+        fn speak(&self) -> String {
+            "Woof!".to_string()
+        }
+        fn name(&self) -> &str {
+            &self.name
+        }
+    }
+
+    #[derive(ForyObject, Debug)]
+    struct Cat {
+        name: String,
+        color: String,
+    }
+
+    impl Animal for Cat {
+        fn speak(&self) -> String {
+            "Meow!".to_string()
+        }
+        fn name(&self) -> &str {
+            &self.name
+        }
+    }
+
+    register_trait_type!(Animal, Dog, Cat);
+
+    #[derive(ForyObject)]
+    struct Zoo {
+        star_animal: Box<dyn Animal>,
+    }
+
+    #[derive(ForyObject)]
+    struct ZooWithSkip {
+        regular_animal: Box<dyn Animal>,
+        #[fory(skip)]
+        skipped_animal: Box<dyn Animal>,
+    }
+
+    let mut fory = Fory::default().compatible(true);
+    fory.register::<Dog>(100).unwrap();
+    fory.register::<Cat>(101).unwrap();
+    fory.register::<Zoo>(102).unwrap();
+    fory.register::<ZooWithSkip>(103).unwrap();
+
+    let zoo_with_skip = ZooWithSkip {
+        regular_animal: Box::new(Dog {
+            name: "Speedy".to_string(),
+            breed: "Greyhound".to_string(),
+        }),
+        skipped_animal: Box::new(Cat {
+            name: "Felix".to_string(),
+            color: "Black".to_string(),
+        }),
+    };
+
+    let bytes_skip = fory.serialize(&zoo_with_skip).unwrap();
+
+    let decoded_skip: ZooWithSkip = fory.deserialize(&bytes_skip).unwrap();
+
+    assert_eq!(decoded_skip.regular_animal.name(), "Speedy");
+    assert_eq!(decoded_skip.regular_animal.speak(), "Woof!");
+
+    assert_eq!(decoded_skip.skipped_animal.name(), "".to_string());
+    assert_eq!(decoded_skip.skipped_animal.speak(), "Woof!".to_string());
+
+    #[derive(ForyObject)]
+    struct ComplexSkipExample {
+        #[fory(skip)]
+        boxed_dyn: Box<dyn Animal>,
+        #[fory(skip)]
+        animals_arc: Vec<Arc<dyn Animal>>,
+        #[fory(skip)]
+        registry: HashMap<String, Arc<dyn Animal>>,
+        #[fory(skip)]
+        animals_rc: Vec<Rc<dyn Animal>>,
+        normal_field: String,
+    }
+
+    let mut fory = Fory::default().compatible(true);
+    fory.register::<ComplexSkipExample>(106).unwrap();
+
+    let complex = ComplexSkipExample {
+        boxed_dyn: Box::new(Dog {
+            name: "BoxTest".to_string(),
+            breed: "BoxTestBreed".to_string(),
+        }) as Box<dyn Animal>,
+        animals_rc: vec![Rc::new(Cat {
+            name: "RcTest".to_string(),
+            color: "RcTestColor".to_string(),
+        }) as Rc<dyn Animal>],
+        animals_arc: vec![Arc::new(Cat {
+            name: "RcTest".to_string(),
+            color: "RcTestColor".to_string(),
+        }) as Arc<dyn Animal>],
+        registry: HashMap::from_iter([(
+            "arc_map".to_string(),
+            Arc::new(Dog {
+                name: "ArcTest".to_string(),
+                breed: "ArcTestBreed".to_string(),
+            }) as Arc<dyn Animal>,
+        )]),
+        normal_field: "test_value".to_string(),
+    };
+
+    let complex_bytes = fory.serialize(&complex).unwrap();
+    let decoded_complex: ComplexSkipExample = fory.deserialize(&complex_bytes).unwrap();
+
+    assert_eq!(decoded_complex.normal_field, "test_value");
+
+    assert_eq!(decoded_complex.boxed_dyn.name(), "".to_string());
+    assert!(decoded_complex.animals_rc.is_empty());
+    assert!(decoded_complex.animals_arc.is_empty());
+    assert!(decoded_complex.registry.is_empty());
+}
