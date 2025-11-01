@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use super::util::{is_default_value_variant, is_skip_enum_variant};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::DataEnum;
@@ -44,8 +45,22 @@ pub fn gen_write(_data_enum: &DataEnum) -> TokenStream {
 }
 
 pub fn gen_write_data(data_enum: &DataEnum) -> TokenStream {
-    let variant_idents: Vec<_> = data_enum.variants.iter().map(|v| &v.ident).collect();
-    let variant_values: Vec<_> = (0..variant_idents.len()).map(|v| v as u32).collect();
+    let default_variant_value = data_enum
+        .variants
+        .iter()
+        .position(|v| is_default_value_variant(v))
+        .unwrap_or(0) as u32;
+    let mut variant_idents = Vec::with_capacity(data_enum.variants.len());
+    let mut variant_values = Vec::with_capacity(data_enum.variants.len());
+    for (variant_value, variant) in data_enum.variants.iter().enumerate() {
+        if is_skip_enum_variant(variant) {
+            variant_values.push(default_variant_value);
+        } else {
+            variant_values.push(variant_value as u32);
+        }
+        variant_idents.push(&variant.ident);
+    }
+
     quote! {
         Ok(match self {
             #(
@@ -53,6 +68,8 @@ pub fn gen_write_data(data_enum: &DataEnum) -> TokenStream {
                     context.writer.write_varuint32(#variant_values);
                 }
             )*
+            _ => {
+            }
         })
     }
 }
@@ -75,8 +92,21 @@ pub fn gen_read_with_type_info(_: &DataEnum) -> TokenStream {
 }
 
 pub fn gen_read_data(data_enum: &DataEnum) -> TokenStream {
-    let variant_idents: Vec<_> = data_enum.variants.iter().map(|v| &v.ident).collect();
-    let variant_values: Vec<_> = (0..variant_idents.len()).map(|v| v as u32).collect();
+    let mut variant_values = Vec::with_capacity(data_enum.variants.len());
+    let mut variant_idents = Vec::with_capacity(data_enum.variants.len());
+    let default_variant_value = data_enum
+        .variants
+        .iter()
+        .position(|v| is_default_value_variant(v))
+        .unwrap_or(0) as u32;
+    for (variant_value, variant) in data_enum.variants.iter().enumerate() {
+        if !is_skip_enum_variant(variant) {
+            variant_values.push(variant_value as u32);
+        } else {
+            variant_values.push(default_variant_value);
+        }
+        variant_idents.push(&variant.ident);
+    }
     quote! {
         let ordinal = context.reader.read_varuint32()?;
         match ordinal {

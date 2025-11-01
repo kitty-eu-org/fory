@@ -53,10 +53,10 @@ struct ComplexNestedSkip {
     skipped_nested: TestSkipFields,
 }
 
-#[derive(ForyObject, Debug, PartialEq, Default)]
+#[derive(ForyObject, Debug, PartialEq)]
 enum TestEnumSkip {
-    #[default]
     Pending,
+    // #[default]
     Active,
     Inactive,
     #[fory(skip)]
@@ -199,7 +199,6 @@ fn test_enum_skip() {
     let original_skip = TestEnumSkip::Deleted;
     let bytes = fory.serialize(&original_skip).unwrap();
     let decoded: TestEnumSkip = fory.deserialize(&bytes).unwrap();
-    // todo: to fix
     assert_eq!(decoded, TestEnumSkip::default());
 }
 

@@ -927,3 +927,25 @@ pub(crate) fn is_skip_field(field: &syn::Field) -> bool {
         }
     })
 }
+
+pub(crate) fn is_skip_enum_variant(variant: &syn::Variant) -> bool {
+    variant.attrs.iter().any(|attr| {
+        attr.path().is_ident("fory") && {
+            let mut skip = false;
+            let _ = attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("skip") {
+                    skip = true;
+                }
+                Ok(())
+            });
+            skip
+        }
+    })
+}
+
+pub(crate) fn is_default_value_variant(variant: &syn::Variant) -> bool {
+    variant
+        .attrs
+        .iter()
+        .any(|attr| attr.path().is_ident("default"))
+}
